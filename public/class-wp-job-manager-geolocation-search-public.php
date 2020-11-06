@@ -136,8 +136,8 @@ class Wp_Job_Manager_Geolocation_Search_Public {
                     return $query_args;
 
                 }
-                    $latitude = $geolocation [lat];
-                    $longitude = $geolocation [long];
+                    $latitude = $geolocation ['lat'];
+                    $longitude = $geolocation ['long'];
                     $city = $geolocation['city'];
                     $zip = $geolocation['postcode'];
                     $state = $geolocation['state_long'];
@@ -293,9 +293,52 @@ class Wp_Job_Manager_Geolocation_Search_Public {
             if( $round !== false ) {
                 $distance = round( $distance, $round );
             }
+            }  else {
+            $distance = round(self::calculate_distance());
+        }
             return $distance;
         }
+    static function calculate_distance(){
+        global $post;
+
+        if ( isset( $_POST['search_location'] ) ) {
+
+                // get field value from form
+                $searchlocation = sanitize_text_field( $_POST['search_location'] );
+                $postLat = get_post_meta($post->ID, 'geolocation_lat', true);
+                $postLong = get_post_meta($post->ID, 'geolocation_long', true);
+                // get geolocation of form value
+                $geolocation = WP_Job_Manager_Geocode::get_location_data($searchlocation);
+                $searchlocationLat = $geolocation['lat'];
+                $searchLocationLong = $geolocation['long'];
+                if($postLat && $postLong && $searchlocationLat && $searchLocationLong){
+                $distance = self::distanceBetweenCoordinates($postLat, $postLong, $searchlocationLat, $searchLocationLong, get_option( 'geolocation_radius_unit' ));
+                }
+
+
+        return $distance;
+        } else {
         return false;
+    }
+    }
+    static function distanceBetweenCoordinates($lat1, $lon1, $lat2, $lon2, $unit = 'miles') {
+        if (($lat1 == $lat2) && ($lon1 == $lon2)) {
+            return 0;
+        }
+        else {
+            $theta = $lon1 - $lon2;
+            $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+            $dist = acos($dist);
+            $dist = rad2deg($dist);
+            $miles = $dist * 60 * 1.1515;
+            $unit = strtoupper($unit);
+
+            if ($unit == "kilometers") {
+                return ($miles * 1.609344);
+            } else {
+                return $miles;
+            }
+        }
     }
 
     private function haversine_term( $geo_query ) {
@@ -331,7 +374,7 @@ class Wp_Job_Manager_Geolocation_Search_Public {
         $postID = get_the_ID();
         $isDefault = get_post_meta($postID, 'isdefaultsearch', true);
         $distance = self::get_the_distance();
-        if($isDefault== '') {
+        if(! $isDefault && $distance ) {
         echo '<div class="geolocation-distance" style="display: none">Distance: ' . round($distance). ' '. get_option( 'geolocation_radius_unit' ).'</div>';
     }
 
